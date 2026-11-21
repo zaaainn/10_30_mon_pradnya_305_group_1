@@ -1,9 +1,0 @@
-# Fixed base theme so the in-app dark-mode switch is the only thing that changes colours.
-# The cobalt accent is used by native widgets such as the dark-mode toggle.
-[theme]
-base = "light"
-primaryColor = "#285bb8"
-backgroundColor = "#f5f7fb"
-secondaryBackgroundColor = "#ffffff"
-textColor = "#18263b"
-font = "sans serif"

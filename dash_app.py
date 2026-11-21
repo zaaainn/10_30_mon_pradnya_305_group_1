@@ -24,9 +24,9 @@ ZONE_KEYS = {zone: zone.replace(" ", "") for zone in ZONES}
 PAGES = ["Study area", "Pipeline view", "Watering data", "Method comparison", "Live diagnosis"]
 PAGE_ICONS = {"Study area": "⌖", "Pipeline view": "⌁", "Watering data": "◉", "Method comparison": "▥", "Live diagnosis": "⌕"}
 COLORS = {
-    "blue": "#3564d8", "blue2": "#6f92f2", "cyan": "#20a8c4", "ink": "#18253b",
-    "muted": "#728098", "border": "#e1e7f0", "rose": "#d95d70", "gold": "#7586a2",
-    "light_bg": "#f3f6fb", "dark_bg": "#0d1422", "dark_card": "#151f32",
+    "blue": "#005f73", "blue2": "#2a7f87", "cyan": "#49a0a5", "ink": "#17343a",
+    "muted": "#697b79", "border": "#dadbcb", "rose": "#d95d70", "gold": "#b9ad79",
+    "white": "#ffffff", "light_bg": "#ffffff", "dark_bg": "#101e22", "dark_card": "#17292d",
 }
 
 app = Dash(__name__, title="Irrigation Twin", assets_folder="assets", suppress_callback_exceptions=True)
@@ -120,18 +120,18 @@ def map_component(row: pd.Series, highlighted_zone: str | None = None):
         radius = 13 if name in ("Source", "Manifold") else 15
         nodes.append(f'<circle cx="{x}" cy="{y}" r="{radius}" fill="{fill}" stroke="white" stroke-width="3"><title>{name} · simulated point</title></circle>')
     labels = [
-        '<g transform="translate(218 424)"><rect width="178" height="31" rx="7" fill="#101b2c" stroke="white"/><text fill="white" x="89" y="20" text-anchor="middle">SIMULATED SOURCE</text></g>',
-        '<g transform="translate(383 427)"><rect width="208" height="31" rx="7" fill="#101b2c" stroke="white"/><text fill="white" x="104" y="20" text-anchor="middle">DISTRIBUTION MANIFOLD</text></g>',
+        f'<g transform="translate(218 424)"><rect width="178" height="31" rx="7" fill="#123a40" stroke="{COLORS["white"]}"/><text fill="{COLORS["white"]}" x="89" y="20" text-anchor="middle">SIMULATED SOURCE</text></g>',
+        f'<g transform="translate(383 427)"><rect width="208" height="31" rx="7" fill="#123a40" stroke="{COLORS["white"]}"/><text fill="{COLORS["white"]}" x="104" y="20" text-anchor="middle">DISTRIBUTION MANIFOLD</text></g>',
     ]
     for zone in ZONES:
         key = ZONE_KEYS[zone]
         x, y = positions[zone]
-        labels.append(f'<g transform="translate({x-42} {y-58})"><rect width="84" height="29" rx="7" fill="#101b2c" stroke="white"/><text fill="white" x="42" y="19" text-anchor="middle">{zone}</text></g>')
-        labels.append(f'<g transform="translate({x+25} {y-12})"><rect width="135" height="48" rx="7" fill="#101b2c" stroke="white"/><text fill="white" x="10" y="19">{row[f"Flow_{key}_L_min"]:.1f} L/min</text><text fill="white" x="10" y="37">{row[f"Pressure_{key}_kPa"]:.1f} kPa</text></g>')
+        labels.append(f'<g transform="translate({x-42} {y-58})"><rect width="84" height="29" rx="7" fill="#123a40" stroke="{COLORS["white"]}"/><text fill="{COLORS["white"]}" x="42" y="19" text-anchor="middle">{zone}</text></g>')
+        labels.append(f'<g transform="translate({x+25} {y-12})"><rect width="135" height="48" rx="7" fill="#123a40" stroke="{COLORS["white"]}"/><text fill="{COLORS["white"]}" x="10" y="19">{row[f"Flow_{key}_L_min"]:.1f} L/min</text><text fill="{COLORS["white"]}" x="10" y="37">{row[f"Pressure_{key}_kPa"]:.1f} kPa</text></g>')
     overlay = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 670" preserveAspectRatio="none">'
-        '<g fill="none" stroke="#14243b" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">' + "".join(routes) + '</g>'
-        '<g fill="none" stroke="#20a8c4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">' + "".join(routes) + '</g>'
+        '<g fill="none" stroke="#173b40" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">' + "".join(routes) + '</g>'
+        f'<g fill="none" stroke="{COLORS["cyan"]}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">' + "".join(routes) + '</g>'
         + "".join(nodes) + '<g font-family="Figtree, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">'
         + "".join(labels) + '</g></svg>'
     )
@@ -189,7 +189,7 @@ def confusion_figure(frame, prediction_column, title):
     predicted = labels + (["unknown_fault"] if (frame[prediction_column] == "unknown_fault").any() else [])
     matrix = pd.crosstab(frame["Condition"], frame[prediction_column]).reindex(index=labels, columns=predicted, fill_value=0)
     fig = go.Figure(go.Heatmap(z=matrix.to_numpy(), x=[p.title() for p in predicted], y=[x.title() for x in labels],
-                               colorscale=[[0, "#e9effb"], [1, COLORS["blue"]]], showscale=False,
+                               colorscale=[[0, COLORS["white"]], [1, COLORS["blue"]]], showscale=False,
                                text=matrix.to_numpy(), texttemplate="%{text}", hovertemplate="Actual %{y}<br>Predicted %{x}: %{z}<extra></extra>"))
     fig.update_layout(title=title, height=315, margin={"l": 12, "r": 12, "t": 40, "b": 20},
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -268,7 +268,6 @@ def render_page(page: str):
         ])
         return html.Div([
             section_heading("Model evaluation", "Method comparison", "Random Forest is the primary method; the schedule-aware threshold is the benchmark"),
-            card([html.Div([html.Span("Held-out evaluation"), html.P(f"{metrics['test_rows']} night-schedule records · {metrics['test_scenario_configurations']} scenario configurations"), html.Small("Night profiles were held out from Random Forest training.")], className="notice-content")], "notice-card"),
             card(html.Div([
                 html.Span("Overall result", className="finding-kicker"),
                 html.H3("Random Forest led on overall fault classification"),
@@ -287,10 +286,10 @@ def render_page(page: str):
         ], className="page-view")
     if page == "Live diagnosis":
         scenarios = sorted(data.Scenario_ID.unique())
+        default_scenario = "NORMAL_NIGHT" if "NORMAL_NIGHT" in scenarios else scenarios[0]
         return html.Div([
             section_heading("Scenario analysis", "Live diagnosis", "Run the saved Random Forest and threshold baseline on a selected simulated case"),
-            card([html.Div([html.Span("i", className="notice-icon"), html.P("This is a simulation interface. Predictions are advisory outputs for the scenarios represented in the synthetic dataset.")], className="notice-content")], "notice-card"),
-            html.Div([dropdown("Scenario", "diagnosis-scenario", scenarios, scenarios[0]), dropdown("Simulation hour", "diagnosis-hour", list(range(6)), 0), html.Button(["Run diagnosis", html.Span("→", className="button-arrow")], id="run-diagnosis", className="button primary")], className="control-row diagnosis-controls"),
+            html.Div([dropdown("Scenario", "diagnosis-scenario", scenarios, default_scenario), dropdown("Simulation hour", "diagnosis-hour", list(range(6)), 0), html.Button(["Run diagnosis", html.Span("→", className="button-arrow")], id="run-diagnosis", className="button primary")], className="control-row diagnosis-controls"),
             html.Div(id="diagnosis-alert", className="alert-host"),
             html.Div(id="diagnosis-readings", className="metric-grid three"),
             html.Div(id="diagnosis-results", className="diagnosis-results"),
@@ -322,7 +321,6 @@ app.layout = html.Div([
             html.Div(id="dubai-clock", className="clock-text"),
             html.Button([html.Span("☾", id="theme-icon"), html.Span("Dark mode", id="theme-label")], id="theme-toggle", className="theme-toggle"),
             html.Div([html.Button("♧", id="notifications-toggle", className="icon-button"), html.Div(id="notification-panel", className="notification-panel hidden")], className="notification-wrap"),
-            html.Div("ZA", className="avatar", title="Project workspace"),
         ], className="topbar"),
         html.Main(id="page-content", className="main-content"),
     ], className="workspace"),
@@ -485,9 +483,26 @@ def run_diagnosis(_, scenario, hour, prior_notification):
     rf_location = str(rf.Predicted_Fault_Location.iloc[0])
     threshold_condition = str(threshold.Threshold_Condition.iloc[0])
     threshold_location = str(threshold.Threshold_Location.iloc[0])
-    is_fault = rf_condition != "normal" or bool(threshold.Threshold_Alert.iloc[0])
+    actual_condition = str(row.Condition)
+    actual_severity = str(row.Severity)
+    actual_location = str(row.Fault_Location)
+    condition_agrees = rf_condition == threshold_condition
+    location_agrees = rf_location == threshold_location
+    methods_agree = condition_agrees and location_agrees
+    differences = []
+    if not condition_agrees:
+        differences.append("condition")
+    if not location_agrees:
+        differences.append("suspected zone")
     message = f"{scenario} · hour {hour}. Random Forest: {rf_condition} at {rf_location}; threshold: {threshold_condition} at {threshold_location}."
-    banner = html.Div([html.Span("●", className="alert-dot"), html.Div([html.Strong("Fault pattern flagged" if is_fault else "Normal schedule pattern"), html.P(message)])], className="result-banner fault" if is_fault else "result-banner clear")
+    rf_summary = f"{rf_condition.replace('_', ' ')} at {rf_location if rf_location != 'none' else 'no fault zone'}"
+    threshold_summary = f"{threshold_condition.replace('_', ' ')} at {threshold_location if threshold_location != 'none' else 'no fault zone'}"
+    banner_title = "Methods agree" if methods_agree else "Methods disagree"
+    if methods_agree:
+        banner_message = f"Both methods predicted {rf_summary}. Compare their shared result with the known simulation label below."
+    else:
+        banner_message = f"The methods differ on {' and '.join(differences)}. Random Forest: {rf_summary}; threshold: {threshold_summary}."
+    banner = html.Div([html.Span("●", className="alert-dot"), html.Div([html.Strong(banner_title), html.P(banner_message)])], className="result-banner agree" if methods_agree else "result-banner disagreement")
     flow_delta, pressure_delta = [], []
     baseline = data.loc[(data.Condition == "normal") & (data.Schedule == row.Schedule) & (data.Hour == hour)]
     if not baseline.empty:
@@ -502,11 +517,33 @@ def run_diagnosis(_, scenario, hour, prior_notification):
                         font={"family": "Figtree, Segoe UI, sans-serif", "color": "var(--plot-text)"}, legend={"orientation": "h", "y": -0.2})
     chart.update_yaxes(title="Change from matching normal baseline", gridcolor="var(--grid)", zerolinecolor="var(--muted)")
     chart.update_xaxes(gridcolor="var(--grid)")
+    def prediction_card(title, method_class, condition, location):
+        condition_matches = condition == actual_condition
+        location_matches = location == actual_location
+        return card([
+            html.Span("PRIMARY MODEL" if method_class == "rf" else "RULE-BASED BENCHMARK", className="result-kicker"),
+            html.H3(title),
+            html.Div(condition.replace("_", " ").title(), className="result-condition"),
+            html.Div([
+                html.Span("Condition matches" if condition_matches else "Condition differs", className="prediction-chip match" if condition_matches else "prediction-chip mismatch"),
+                html.Span("Zone matches" if location_matches else "Zone differs", className="prediction-chip match" if location_matches else "prediction-chip mismatch"),
+            ], className="prediction-checks"),
+            html.Div([html.Span("Suspected zone"), html.Strong(location)], className="result-location"),
+        ], f"result-method {method_class}")
+
     results = html.Div([
         html.Div([html.H2("Diagnosis results"), html.P(f"Simulated result · {scenario} · hour {hour}", className="page-subtitle")], className="result-heading"),
-        banner,
-        html.Div([card([html.Span("PRIMARY MODEL", className="result-kicker"), html.H3("Random Forest"), html.Div(rf_condition.replace("_", " ").title(), className="result-condition"), html.Div([html.Span("Suspected zone"), html.Strong(rf_location)], className="result-location")], "result-method rf"),
-                  card([html.Span("BENCHMARK", className="result-kicker"), html.H3("Schedule-aware threshold"), html.Div(threshold_condition.replace("_", " ").title(), className="result-condition"), html.Div([html.Span("Suspected zone"), html.Strong(threshold_location)], className="result-location")], "result-method threshold")], className="diagnosis-methods"),
+        card([
+            html.Div("KNOWN SIMULATION LABEL", className="truth-kicker"),
+            html.Div([
+                html.Div([html.Span("Condition"), html.Strong(actual_condition.title())], className="truth-value"),
+                html.Div([html.Span("Severity"), html.Strong(actual_severity.title())], className="truth-value"),
+                html.Div([html.Span("Affected zone"), html.Strong(actual_location)], className="truth-value"),
+            ], className="truth-fields"),
+            html.P("This is the recorded answer for the selected synthetic scenario; the methods do not receive this label as an input.", className="truth-caption"),
+        ], "truth-card"),
+        html.Div([prediction_card("Random Forest", "rf", rf_condition, rf_location),
+                  prediction_card("Schedule-aware threshold", "threshold", threshold_condition, threshold_location)], className="diagnosis-methods"),
         card([html.H3("Sensor changes from the matching schedule baseline"), html.P("Observed minus expected values for the selected simulation hour.", className="card-subtitle"), dcc.Graph(figure=chart, config={"displayModeBar": False})], "card"),
     ], className="result-stack")
     notification = {"open": True, "message": message}
