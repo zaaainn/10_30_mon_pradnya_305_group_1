@@ -6,11 +6,11 @@
 
 ## Scope and procedure
 
-Both methods were run against the same 114 held-out night-schedule records, covering 19 scenario configurations: normal operation plus leak and clog cases for all three zones and three severities. The Random Forest training split excludes the entire night schedule. Predictions were compared with the recorded scenario labels and locations. All readings are synthetic simulation outputs; this evaluates the working prototype, not live UOW infrastructure or real field performance.
+Both methods were applied to the same group of 114 night-schedule held-out records and 19 scenarios (normal operation, three leak and three clog conditions for each zone). The entire night schedule is not included in the training split for the Random Forest. The scenario labels and locations recorded were compared with predictions. All readings are synthetic simulation outputs, not actual performance in the live UOW infrastructure or actual field performance.
 
 ## Main results
 
-**Key finding:** On the held-out night schedule, Random Forest achieved higher overall classification accuracy and macro F1 than the schedule-aware threshold baseline. It also detected every simulated fault case, had higher overall leak recall and higher clog recall at each reported severity. This supports Random Forest as the stronger overall fault-classification method in these tested scenarios. The threshold baseline was better at locating faults and avoiding false warnings, so those trade-offs remain part of the result.
+**Key finding:**  Random Forest outperformed the held-out night schedule baseline in overall classification accuracy and macro F1 on the held-out night schedule. It also identified all simulated fault cases, had a higher overall leak recall and a higher clog recall at every severity reported. This is a favorable result for Random Forest as the best overall fault-classification technique for these cases. Those trade-offs are still present, as the threshold baseline performs better in the ability to locate faults and to not alert inappropriately.
 
 | Measure | Random Forest | Schedule-aware threshold |
 |---|---:|---:|
@@ -24,9 +24,9 @@ Both methods were run against the same 114 held-out night-schedule records, cove
 | Severe-clog recall | 94.4% (17/18) | 66.7% (12/18) |
 | Mean backend processing time per record | 1.616 ms on this run | 0.191 ms on this run |
 
-The fault missed-rate counts faults for which the method produced no alert. A wrong fault-type prediction can still count as an alert, so classification errors are also reported separately through precision, recall and F1.
+The fault missed-rate is the number of faults that the method did not produce an alert. Even if a wrong prediction of the fault type is detected, the event will still be reported as an alert and thus classification errors will be reported separately with precision, recall and F1.
 
-For the research question, the most relevant overall measures are classification accuracy and macro F1: both are higher for Random Forest in this held-out test. The fault-location and false-warning measures show where the simpler threshold baseline remains useful. The measurements do not establish that either method will perform the same way with field data.
+The most relevant overall measures for the research question are the classification accuracy and macro F1: both are higher for Random Forest in this held-out test. The measures of fault location and false warning show the utility and accuracy of the simpler threshold baseline. The measurements do not show that either method will be the same when applied to field data.
 
 ## Test cases: AI-suggested and manually selected
 
@@ -42,17 +42,17 @@ The night profile uses a demand multiplier of 0.15. A zero-demand/no-watering fa
 
 The full evaluation was run twice. The second run produced the same prediction CSV byte-for-byte (SHA-256: `4B230141170BA63073541231C974A68CCDCCAD5408932A44786AF4CAA2D38C9D`). The measured processing times differed between runs, so they are reported as backend timing observations rather than stable dashboard response-time results.
 
-**Successes:** the evaluation completed for both methods on identical held-out cases; the classifier had higher macro F1 and no missed fault alerts; the threshold method had higher fault-location accuracy and no false warnings; the prediction retest was reproducible.
+**Successes:** higher macro F1 and higher accuracy of fault-location, no cases of missed alerts, no false warnings and re-creatable prediction retest for the two methods evaluated on the same held-out cases.
 
-**Failures and limitations:** the classifier produced three false warnings among six normal cases; both methods had weak mild-clog recall; the classifier's location accuracy was lower than the threshold method; and no zero-demand test was available. The response-time metric currently measures backend processing only, not the full time from selecting a dashboard scenario until the displayed result appears.
+**Failures and limitations:** Both methods had low mild-clog recall with the classifier producing three false warnings and the threshold method having poor location accuracy and no zero-demand test. Currently, the response-time metric only accounts for the backend processing time, and not the complete time from the user clicking on a dashboard scenario until he or she sees the result.
 
-**Iteration decision:** keep the held-out night results untouched for reporting rather than tuning model or threshold settings against the test set. For the next iteration, add explicit zero-demand scenarios, investigate the normal-operation false warnings and mild-clog errors using training/validation data, then evaluate any revised version on a fresh held-out test set. Measure dashboard end-to-end response time separately in the browser.
+**Iteration decision:** Do not tune model or threshold settings on the held-out night results and report this set separately. For the next iteration, include explicit zero demand conditions, examine normal operation false warning and mild clog errors on train/valid data, and test a new version on a new (held-out) test set. Measure end to end response time in the browser independently.
 
 ## Dashboard update and retest — 9 November 2026
 
-The Study area page now shows the geographic context image and a separate schematic 3 km boundary, without the simulated pipeline overlay or schedule/hour selectors. Pipeline view remains the place to inspect the simulated source, manifold, zones, readings and scenario controls. Method comparison now calls out the Random Forest's measured advantages while retaining the baseline's location and false-warning advantages, and links to this report. The results displayed on the page use the same held-out evaluation summarized above; no scores or source readings were altered.
+The Study area page now displays the geographic context image and a separate schematic 3 km boundary, displacing the pipeline overlay, and without the schedule/hour selectors. The simulated source, manifold, zones, readings and scenario controls are still found in the pipeline view. Method comparison now identifies the measured advantages of the Random Forest while retaining the location and false-warning advantages of the baseline, and suggests some links with this report. The results on the page represent the held-out evaluation described above (but no results or source readings were changed).
 
-After the page separation and report link were added, the local dataset and dashboard validation suite passed **8 tests in 9.975 seconds**. This includes checks that Study area no longer contains a pipeline overlay, Pipeline view still renders its network controls, Method comparison renders, and the report URL returns the current report. This is local verification only; the hosted Render deployment still needs to complete successfully.
+When added the page separation and report link, the local dataset and dashboard validation suite passed **8 tests in 9.975 seconds**. This includes pipeline overlay checks that Study area does not contain a pipeline overlay, pipeline views rendering pipeline network controls, and Method comparison rendering and report URL returning current report. This is a local verification only, the hosted Render deploy is still to finish successfully.
 
 ## Evidence files
 
