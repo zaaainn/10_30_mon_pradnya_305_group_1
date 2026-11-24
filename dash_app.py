@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import base64
+import re
 from functools import lru_cache
 from pathlib import Path
+from html import escape as escape_html
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, callback, dash_table, dcc, html, no_update
-from flask import send_file
+from flask import Response
 
 from diagnosis import DEFAULT_MODEL_PATH, load_model, predict_records
 from schedule_aware_threshold import predict_thresholds
@@ -35,9 +37,103 @@ server = app.server
 
 @server.get("/testing-report")
 def serve_testing_report():
-    """Serve the current validation report from the deployed project files."""
+    """Render the current validation report as a readable web page."""
     report_path = ROOT / "outputs" / "TESTING_VALIDATION_REPORT.md"
-    return send_file(report_path, mimetype="text/markdown", as_attachment=False)
+    report = report_path.read_text(encoding="utf-8")
+    rendered_report = _render_report_markdown(report)
+    page = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#005f73">
+  <title>Testing, Validation and Iteration Report · Irrigation Twin</title>
+  <link rel="stylesheet" href="/assets/report.css">
+</head>
+<body>
+  <header class="report-toolbar">
+    <a class="report-brand" href="/">Irrigation Twin</a>
+    <span class="toolbar-title">Testing, validation and iteration</span>
+    <div class="toolbar-actions">
+      <button type="button" onclick="window.print()">Print / Save as PDF</button>
+      <a href="/">Back to dashboard</a>
+    </div>
+  </header>
+  <main class="report-document">{rendered_report}</main>
+  <footer class="report-footer">Irrigation Twin · Validation evidence for the simulated diagnosis prototype</footer>
+</body>
+</html>"""
+    return Response(page, mimetype="text/html")
+
+
+def _inline_report_markdown(text: str) -> str:
+    """Convert the small inline Markdown subset used by the report safely."""
+    safe = escape_html(text, quote=True)
+    safe = re.sub(r"`([^`]+)`", r"<code>\1</code>", safe)
+    safe = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
+    safe = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", safe)
+    return safe
+
+
+def _render_report_markdown(markdown: str) -> str:
+    """Render report headings, paragraphs, lists, and tables without dependencies."""
+    lines = markdown.splitlines()
+    blocks: list[str] = []
+    paragraph: list[str] = []
+    list_items: list[str] = []
+
+    def flush_paragraph() -> None:
+        if paragraph:
+            blocks.append(f"<p>{_inline_report_markdown(' '.join(line.strip() for line in paragraph))}</p>")
+            paragraph.clear()
+
+    def flush_list() -> None:
+        if list_items:
+            items = "".join(f"<li>{_inline_report_markdown(item)}</li>" for item in list_items)
+            blocks.append(f"<ul>{items}</ul>")
+            list_items.clear()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            flush_paragraph()
+            flush_list()
+            i += 1
+            continue
+        heading = re.match(r"^(#{1,3})\s+(.+)$", line)
+        if heading:
+            flush_paragraph()
+            flush_list()
+            level = len(heading.group(1))
+            blocks.append(f"<h{level}>{_inline_report_markdown(heading.group(2))}</h{level}>")
+            i += 1
+            continue
+        if line.startswith("|") and i + 1 < len(lines) and re.match(r"^\s*\|?\s*:?-{3,}", lines[i + 1]):
+            flush_paragraph()
+            flush_list()
+            rows = [line]
+            i += 2  # header plus Markdown separator
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                rows.append(lines[i].strip())
+                i += 1
+            parsed = [[cell.strip() for cell in row.strip("|").split("|")] for row in rows]
+            header = "".join(f"<th>{_inline_report_markdown(cell)}</th>" for cell in parsed[0])
+            body = "".join("<tr>" + "".join(f"<td>{_inline_report_markdown(cell)}</td>" for cell in row) + "</tr>" for row in parsed[1:])
+            blocks.append(f"<div class=\"report-table-wrap\"><table><thead><tr>{header}</tr></thead><tbody>{body}</tbody></table></div>")
+            continue
+        if line.startswith("- "):
+            flush_paragraph()
+            list_items.append(line[2:].strip())
+            i += 1
+            continue
+        flush_list()
+        paragraph.append(line)
+        i += 1
+
+    flush_paragraph()
+    flush_list()
+    return "\n".join(blocks)
 
 
 @lru_cache(maxsize=1)
@@ -242,6 +338,7 @@ def render_page(page: str):
     if page == "Method comparison":
         predictions, metrics = comparison()
         rf, baseline = metrics["random_forest"], metrics["schedule_aware_threshold"]
+        rf_severity = metrics["random_forest_severity"]
         fault_record_count = int((predictions["Condition"] != "normal").sum())
         random_forest_alerted_faults = fault_record_count - round(rf["missed_fault_rate"] * fault_record_count)
         summary = [
@@ -271,7 +368,7 @@ def render_page(page: str):
             card(html.Div([
                 html.Span("Overall result", className="finding-kicker"),
                 html.H3("Random Forest led on overall fault classification"),
-                html.P(f"On this held-out test, Random Forest scored {rf['accuracy']:.1%} accuracy and {rf['macro_f1']:.1%} macro F1, compared with {baseline['accuracy']:.1%} and {baseline['macro_f1']:.1%} for the schedule-aware threshold. It flagged {random_forest_alerted_faults}/{fault_record_count} simulated fault records and had higher clog recall at all three tested severity levels."),
+                html.P(f"On this held-out test, Random Forest scored {rf['accuracy']:.1%} accuracy and {rf['macro_f1']:.1%} macro F1, compared with {baseline['accuracy']:.1%} and {baseline['macro_f1']:.1%} for the schedule-aware threshold. It flagged {random_forest_alerted_faults}/{fault_record_count} simulated fault records, had higher clog recall at all three tested severity levels, and its added severity classifier achieved {rf_severity['accuracy']:.1%} exact severity accuracy across held-out fault cases."),
                 html.P(f"Trade-offs: the threshold baseline had higher fault-location accuracy ({baseline['fault_location_accuracy']:.1%} vs {rf['fault_location_accuracy']:.1%}) and no false warnings on the six normal records; Random Forest produced three false warnings. Results apply only to these synthetic scenarios."),
                 html.A("Read testing, validation and iteration report ↗", href="/testing-report", target="_blank", className="report-link"),
             ], className="finding-copy"), "finding-card"),
@@ -309,7 +406,7 @@ app.layout = html.Div([
     dcc.Store(id="notification-state", data={"open": False, "message": "No new diagnosis alerts."}),
     dcc.Interval(id="clock-tick", interval=30_000, n_intervals=0),
     html.Aside([
-        html.Div([html.Div("◉", className="brand-mark"), html.Div([html.Strong("IRRIGATION TWIN"), html.Small("FAULT DIAGNOSIS WORKSPACE")])], className="brand-row"),
+        html.Div([html.Div("IR", className="brand-mark"), html.Div([html.Span("IRRIGATION TWIN", className="brand-title"), html.Small("FAULT DIAGNOSIS WORKSPACE")])], className="brand-row"),
         html.Div([html.Div("WORKSPACE", className="nav-group-title"), *[nav_item(p) for p in PAGES[:2]],
                   html.Div("DATA & INSIGHTS", className="nav-group-title second"), *[nav_item(p) for p in PAGES[2:]]], className="sidebar-nav"),
         html.Div([html.Span("●", className="connection-dot"), html.Span("SIMULATION DATA"), html.Small("No live sensors connected")], className="sidebar-status"),
@@ -448,7 +545,7 @@ def update_predictions(condition, severity, location):
     if severity != "All": frame = frame.loc[frame.Severity == severity]
     if location != "All": frame = frame.loc[frame.Fault_Location == location]
     columns = ["Scenario_ID", "Hour", "Condition", "Severity", "Fault_Location", "Predicted_Condition",
-               "Predicted_Fault_Location", "Threshold_Alert", "Threshold_Condition", "Threshold_Location"]
+               "Predicted_Fault_Location", "Predicted_Severity", "Threshold_Alert", "Threshold_Condition", "Threshold_Location"]
     return data_table(frame[columns], "heldout-predictions", "520px")
 
 
@@ -481,6 +578,7 @@ def run_diagnosis(_, scenario, hour, prior_notification):
     row = selected.iloc[0]
     rf_condition = str(rf.Predicted_Condition.iloc[0])
     rf_location = str(rf.Predicted_Fault_Location.iloc[0])
+    rf_severity = str(rf.Predicted_Severity.iloc[0])
     threshold_condition = str(threshold.Threshold_Condition.iloc[0])
     threshold_location = str(threshold.Threshold_Location.iloc[0])
     actual_condition = str(row.Condition)
@@ -517,17 +615,32 @@ def run_diagnosis(_, scenario, hour, prior_notification):
                         font={"family": "Figtree, Segoe UI, sans-serif", "color": "var(--plot-text)"}, legend={"orientation": "h", "y": -0.2})
     chart.update_yaxes(title="Change from matching normal baseline", gridcolor="var(--grid)", zerolinecolor="var(--muted)")
     chart.update_xaxes(gridcolor="var(--grid)")
-    def prediction_card(title, method_class, condition, location):
+    def prediction_card(title, method_class, condition, location, severity):
         condition_matches = condition == actual_condition
         location_matches = location == actual_location
+        severity_is_applicable = actual_severity in {"mild", "moderate", "severe"}
+        severity_matches = severity == actual_severity
+        severity_label = severity.replace("_", " ").title()
+        if method_class == "rf" and severity == "not_applicable" and severity_is_applicable:
+            severity_label = "Not returned (normal predicted)"
+        elif method_class != "rf":
+            severity_label = "Not estimated"
+        checks = [
+            html.Span("Condition matches" if condition_matches else "Condition differs", className="prediction-chip match" if condition_matches else "prediction-chip mismatch"),
+            html.Span("Zone matches" if location_matches else "Zone differs", className="prediction-chip match" if location_matches else "prediction-chip mismatch"),
+        ]
+        if method_class == "rf" and severity_is_applicable:
+            severity_returned = severity != "not_applicable"
+            checks.append(html.Span(
+                ("Severity matches" if severity_matches else "Severity differs") if severity_returned else "Severity not returned",
+                className="prediction-chip match" if severity_returned and severity_matches else "prediction-chip mismatch",
+            ))
         return card([
             html.Span("PRIMARY MODEL" if method_class == "rf" else "RULE-BASED BENCHMARK", className="result-kicker"),
             html.H3(title),
             html.Div(condition.replace("_", " ").title(), className="result-condition"),
-            html.Div([
-                html.Span("Condition matches" if condition_matches else "Condition differs", className="prediction-chip match" if condition_matches else "prediction-chip mismatch"),
-                html.Span("Zone matches" if location_matches else "Zone differs", className="prediction-chip match" if location_matches else "prediction-chip mismatch"),
-            ], className="prediction-checks"),
+            html.Div(checks, className="prediction-checks"),
+            html.Div([html.Span("Severity estimate"), html.Strong(severity_label)], className="result-location"),
             html.Div([html.Span("Suspected zone"), html.Strong(location)], className="result-location"),
         ], f"result-method {method_class}")
 
@@ -542,8 +655,8 @@ def run_diagnosis(_, scenario, hour, prior_notification):
             ], className="truth-fields"),
             html.P("This is the recorded answer for the selected synthetic scenario; the methods do not receive this label as an input.", className="truth-caption"),
         ], "truth-card"),
-        html.Div([prediction_card("Random Forest", "rf", rf_condition, rf_location),
-                  prediction_card("Schedule-aware threshold", "threshold", threshold_condition, threshold_location)], className="diagnosis-methods"),
+        html.Div([prediction_card("Random Forest", "rf", rf_condition, rf_location, rf_severity),
+                  prediction_card("Schedule-aware threshold", "threshold", threshold_condition, threshold_location, "not_estimated")], className="diagnosis-methods"),
         card([html.H3("Sensor changes from the matching schedule baseline"), html.P("Observed minus expected values for the selected simulation hour.", className="card-subtitle"), dcc.Graph(figure=chart, config={"displayModeBar": False})], "card"),
     ], className="result-stack")
     notification = {"open": True, "message": message}

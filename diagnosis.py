@@ -29,7 +29,7 @@ def load_model(path: str | Path = DEFAULT_MODEL_PATH) -> dict:
 
 
 def predict_records(records: pd.DataFrame, model_bundle: dict | None = None) -> pd.DataFrame:
-    """Predict normal/leak/clog and, for predicted faults, the affected zone."""
+    """Predict condition and, for predicted faults, location and severity."""
     model_bundle = model_bundle or load_model()
     missing = [column for column in FEATURE_COLUMNS if column not in records.columns]
     if missing:
@@ -38,11 +38,14 @@ def predict_records(records: pd.DataFrame, model_bundle: dict | None = None) -> 
     features = records[FEATURE_COLUMNS]
     conditions = model_bundle["condition_model"].predict(features)
     locations = np.full(len(records), "none", dtype=object)
+    severities = np.full(len(records), "not_applicable", dtype=object)
     fault_mask = conditions != "normal"
     if fault_mask.any():
         locations[fault_mask] = model_bundle["location_model"].predict(features.loc[fault_mask])
+        severities[fault_mask] = model_bundle["severity_model"].predict(features.loc[fault_mask])
 
     predictions = records.copy()
     predictions["Predicted_Condition"] = conditions
     predictions["Predicted_Fault_Location"] = locations
+    predictions["Predicted_Severity"] = severities
     return predictions

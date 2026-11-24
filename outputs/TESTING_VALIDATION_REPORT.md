@@ -1,8 +1,8 @@
 # Testing, Validation and Iteration Report
 
-**Run date:** 8 November 2026  
-**Prototype:** WNTR-generated irrigation readings, saved Random Forest diagnosis model, schedule-aware threshold baseline  
-**Evaluation command:** `.venv\\Scripts\\python.exe evaluate_methods.py`
+**Original evaluation:** 8 November 2026 · **Severity-model update:** 24 November 2026
+**Prototype:** WNTR-generated irrigation readings, Random Forest condition/location/severity models, schedule-aware threshold baseline
+**Training and evaluation:** `.venv\\Scripts\\python.exe train_model.py`, then `.venv\\Scripts\\python.exe evaluate_methods.py`
 
 ## Scope and procedure
 
@@ -10,7 +10,7 @@ Both methods were applied to the same group of 114 night-schedule held-out recor
 
 ## Main results
 
-**Key finding:**  Random Forest outperformed the held-out night schedule baseline in overall classification accuracy and macro F1 on the held-out night schedule. It also identified all simulated fault cases, had a higher overall leak recall and a higher clog recall at every severity reported. This is a favorable result for Random Forest as the best overall fault-classification technique for these cases. Those trade-offs are still present, as the threshold baseline performs better in the ability to locate faults and to not alert inappropriately.
+**Key finding:** On the held-out night schedule, Random Forest achieved higher overall classification accuracy and macro F1 than the schedule-aware threshold baseline. It also detected every simulated fault case, had higher overall leak recall and higher clog recall at each reported severity. The added Random Forest severity classifier achieved 87.0% exact severity accuracy (macro F1 86.9%) across the 108 held-out fault records. This supports Random Forest as the stronger overall classifier for these simulated cases. The threshold baseline was better at locating faults and avoiding false warnings, and does not estimate severity.
 
 | Measure | Random Forest | Schedule-aware threshold |
 |---|---:|---:|
@@ -22,7 +22,10 @@ Both methods were applied to the same group of 114 night-schedule held-out recor
 | Mild-clog recall | 61.1% (11/18) | 38.9% (7/18) |
 | Moderate-clog recall | 66.7% (12/18) | 55.6% (10/18) |
 | Severe-clog recall | 94.4% (17/18) | 66.7% (12/18) |
-| Mean backend processing time per record | 1.616 ms on this run | 0.191 ms on this run |
+| Severity exact accuracy on held-out fault records | 87.0% (94/108) | Not estimated |
+| Severity macro F1 on held-out fault records | 86.9% | Not estimated |
+
+The severity classifier predicts mild, moderate, or severe for fault cases. Its test covers 108 held-out night fault records, with 36 records per severity. Recall was 100.0% for mild, 75.0% for moderate, and 86.1% for severe. Severity accuracy is a Random Forest capability; the threshold baseline has no severity output. These are simulated labels and readings, not measured field fault severities.
 
 The fault missed-rate is the number of faults that the method did not produce an alert. Even if a wrong prediction of the fault type is detected, the event will still be reported as an alert and thus classification errors will be reported separately with precision, recall and F1.
 
@@ -40,9 +43,9 @@ The night profile uses a demand multiplier of 0.15. A zero-demand/no-watering fa
 
 ## Retest and iteration record
 
-The full evaluation was run twice. The second run produced the same prediction CSV byte-for-byte (SHA-256: `4B230141170BA63073541231C974A68CCDCCAD5408932A44786AF4CAA2D38C9D`). The measured processing times differed between runs, so they are reported as backend timing observations rather than stable dashboard response-time results.
+Before the severity-model update, the full condition/location comparison was run twice and produced the same prediction CSV byte-for-byte (SHA-256: `4B230141170BA63073541231C974A68CCDCCAD5408932A44786AF4CAA2D38C9D`). The updated evaluation on 24 November includes the new severity predictions; repeat-run reproducibility for this expanded output has not yet been checked. Processing times vary between runs, so they are backend timing observations rather than stable dashboard response-time results.
 
-**Successes:** higher macro F1 and higher accuracy of fault-location, no cases of missed alerts, no false warnings and re-creatable prediction retest for the two methods evaluated on the same held-out cases.
+**Successes:** the evaluation completed for both methods on identical held-out cases; the classifier had higher macro F1 and no missed fault alerts; the threshold method had higher fault-location accuracy and no false warnings; and the Random Forest severity model was evaluated on the same held-out fault records.
 
 **Failures and limitations:** Both methods had low mild-clog recall with the classifier producing three false warnings and the threshold method having poor location accuracy and no zero-demand test. Currently, the response-time metric only accounts for the backend processing time, and not the complete time from the user clicking on a dashboard scenario until he or she sees the result.
 

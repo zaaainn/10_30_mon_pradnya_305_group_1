@@ -1,4 +1,4 @@
-"""Train and save Random Forest condition and fault-location classifiers."""
+"""Train and save Random Forest condition, location, and severity classifiers."""
 
 import argparse
 from pathlib import Path
@@ -73,10 +73,17 @@ def train_and_save(dataset_path: Path, model_path: Path) -> dict:
     location_prediction = location_model.predict(test_faults[FEATURE_COLUMNS])
     location_accuracy = accuracy_score(test_faults["Fault_Location"], location_prediction)
 
+    severity_model = make_classifier()
+    severity_model.fit(train_faults[FEATURE_COLUMNS], train_faults["Severity"])
+    severity_prediction = severity_model.predict(test_faults[FEATURE_COLUMNS])
+    severity_accuracy = accuracy_score(test_faults["Severity"], severity_prediction)
+    severity_macro_f1 = f1_score(test_faults["Severity"], severity_prediction, average="macro")
+
     model_path.parent.mkdir(parents=True, exist_ok=True)
     bundle = {
         "condition_model": condition_model,
         "location_model": location_model,
+        "severity_model": severity_model,
         "feature_columns": FEATURE_COLUMNS,
         "numeric_features": NUMERIC_FEATURES,
         "categorical_features": CATEGORICAL_FEATURES,
@@ -90,6 +97,8 @@ def train_and_save(dataset_path: Path, model_path: Path) -> dict:
             "condition_accuracy_night": condition_accuracy,
             "condition_macro_f1_night": condition_macro_f1,
             "fault_location_accuracy_night": location_accuracy,
+            "severity_accuracy_night_faults": severity_accuracy,
+            "severity_macro_f1_night_faults": severity_macro_f1,
         },
     }
     joblib.dump(bundle, model_path)
@@ -98,6 +107,10 @@ def train_and_save(dataset_path: Path, model_path: Path) -> dict:
     print(f"Condition accuracy on held-out night schedule: {condition_accuracy:.3f}")
     print(f"Condition macro F1 on held-out night schedule: {condition_macro_f1:.3f}")
     print(f"Fault-location accuracy on held-out night faults: {location_accuracy:.3f}")
+    print(f"Severity accuracy on held-out night faults: {severity_accuracy:.3f}")
+    print(f"Severity macro F1 on held-out night faults: {severity_macro_f1:.3f}")
+    print("Severity classification report on held-out night faults:")
+    print(classification_report(test_faults["Severity"], severity_prediction, zero_division=0))
     print("Condition classification report:")
     print(classification_report(test["Condition"], condition_prediction, zero_division=0))
     print(f"Saved model bundle: {model_path}")

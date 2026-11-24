@@ -41,6 +41,30 @@ def condition_metrics(actual: pd.Series, predicted: pd.Series) -> dict:
     return {"accuracy": accuracy, "macro_f1": float(np.mean(f1_values)), "per_class": per_class}
 
 
+def severity_metrics(actual: pd.Series, predicted: pd.Series) -> dict:
+    """Score exact severity on held-out faults; missing severity outputs count as misses."""
+    actual = actual.reset_index(drop=True)
+    predicted = predicted.reset_index(drop=True)
+    per_class = {}
+    f1_values = []
+    for label in CLOG_SEVERITIES:
+        true_positive = int(((actual == label) & (predicted == label)).sum())
+        false_positive = int(((actual != label) & (predicted == label)).sum())
+        false_negative = int(((actual == label) & (predicted != label)).sum())
+        precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 0.0
+        recall = true_positive / (true_positive + false_negative) if true_positive + false_negative else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        per_class[label] = {"precision": precision, "recall": recall, "f1": f1, "support": int((actual == label).sum())}
+        f1_values.append(f1)
+    return {
+        "accuracy": float((actual == predicted).mean()) if len(actual) else 0.0,
+        "macro_f1": float(np.mean(f1_values)) if f1_values else 0.0,
+        "per_class": per_class,
+        "support": len(actual),
+        "scope": "All held-out fault records; cases classified as normal have no severity output and count as incorrect.",
+    }
+
+
 def summarize_method(
     actual: pd.DataFrame,
     predicted_condition: pd.Series,
@@ -108,10 +132,22 @@ def evaluate_methods(data: pd.DataFrame, model_bundle: dict) -> tuple[pd.DataFra
         threshold_predictions["Threshold_Alert"],
         threshold_time,
     )
+    fault_mask = held_out["Condition"] != "normal"
+    severity_summary = severity_metrics(
+        held_out.loc[fault_mask, "Severity"],
+        ml_predictions.loc[fault_mask, "Predicted_Severity"],
+    )
+    detected_fault_mask = fault_mask & ml_predictions["Predicted_Condition"].ne("normal")
+    severity_summary["conditional_accuracy_when_fault_flagged"] = (
+        float((held_out.loc[detected_fault_mask, "Severity"].to_numpy() ==
+               ml_predictions.loc[detected_fault_mask, "Predicted_Severity"].to_numpy()).mean())
+        if detected_fault_mask.any() else 0.0
+    )
 
     prediction_columns = [
         "Predicted_Condition",
         "Predicted_Fault_Location",
+        "Predicted_Severity",
     ]
     result = pd.concat(
         [
@@ -134,6 +170,7 @@ def evaluate_methods(data: pd.DataFrame, model_bundle: dict) -> tuple[pd.DataFra
         "split_note": "All night-profile scenarios were held out from Random Forest training.",
         "response_time_note": "Average backend processing time per record; excludes browser rendering and user selection time.",
         "random_forest": ml_summary,
+        "random_forest_severity": severity_summary,
         "schedule_aware_threshold": threshold_summary,
     }
     return result, metrics
@@ -166,6 +203,12 @@ def main() -> None:
             f"processing={result['processing_ms_per_record']:.3f} ms/record"
         )
         print("  Clog recall by severity:", result["clog_recall_by_severity"])
+    severity = metrics["random_forest_severity"]
+    print(
+        f"Random Forest severity accuracy={severity['accuracy']:.3f}, "
+        f"macro-F1={severity['macro_f1']:.3f} across {severity['support']} held-out fault records "
+        f"(when a fault is flagged: {severity['conditional_accuracy_when_fault_flagged']:.3f})."
+    )
     print(f"Saved prediction comparison: {args.predictions}")
     print(f"Saved metric summary: {args.metrics}")
     print(metrics["response_time_note"])
