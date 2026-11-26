@@ -1,0 +1,59 @@
+{
+  "evaluation": "5-fold GroupKFold by Scenario_ID, fault records only",
+  "record_count": 324,
+  "fault_scenario_count": 54,
+  "schedules": [
+    "afternoon",
+    "morning",
+    "night"
+  ],
+  "normal_record_count_used_for_training_and_calibration": 18,
+  "normal_records_in_test": 0,
+  "false_warning_rate": null,
+  "false_warning_note": "Not measured: all normal records were retained for Random Forest training and threshold baseline calibration.",
+  "scenario_grouping_note": "All hourly records for a Scenario_ID stay in the same fold. Each fault record is evaluated out of fold once.",
+  "random_forest": {
+    "accuracy": 1.0,
+    "macro_f1_leak_clog": 1.0,
+    "per_condition": {
+      "leak": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 162
+      },
+      "clog": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 162
+      }
+    },
+    "missed_fault_count": 0,
+    "missed_fault_rate": 0.0
+  },
+  "schedule_aware_threshold": {
+    "accuracy": 0.7191358024691358,
+    "macro_f1_leak_clog": 0.8282820412933385,
+    "per_condition": {
+      "leak": {
+        "precision": 1.0,
+        "recall": 0.8641975308641975,
+        "support": 162
+      },
+      "clog": {
+        "precision": 1.0,
+        "recall": 0.5740740740740741,
+        "support": 162
+      }
+    },
+    "missed_fault_count": 28,
+    "missed_fault_rate": 0.08641975308641975
+  },
+  "fault_location_accuracy": {
+    "random_forest": 0.9135802469135802,
+    "schedule_aware_threshold": 0.9135802469135802
+  },
+  "random_forest_severity": {
+    "exact_accuracy": 0.5246913580246914,
+    "macro_f1": 0.5224782191309388
+  }
+}

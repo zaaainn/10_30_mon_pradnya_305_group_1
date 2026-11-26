@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -20,6 +21,7 @@ from schedule_aware_threshold import predict_thresholds
 
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "outputs" / "labeled_fault_scenarios.csv"
+ALL_SCHEDULE_CV_PATH = ROOT / "outputs" / "all_schedules_fault_cv_metrics.json"
 MAP_PATH = ROOT / "assets" / "uow_dubai_context.png"
 ZONES = ["Zone A", "Zone B", "Zone C"]
 ZONE_KEYS = {zone: zone.replace(" ", "") for zone in ZONES}
@@ -150,6 +152,13 @@ def comparison() -> tuple[pd.DataFrame, dict]:
     from evaluate_methods import evaluate_methods
 
     return evaluate_methods(dataset(), load_model(DEFAULT_MODEL_PATH))
+
+
+@lru_cache(maxsize=1)
+def all_schedule_fault_cv() -> dict:
+    if not ALL_SCHEDULE_CV_PATH.exists():
+        raise FileNotFoundError("The all-schedule grouped evaluation metrics are missing from outputs/.")
+    return json.loads(ALL_SCHEDULE_CV_PATH.read_text(encoding="utf-8"))
 
 
 def card(children, class_name="card", **kwargs):
@@ -337,19 +346,27 @@ def render_page(page: str):
         ], className="page-view")
     if page == "Method comparison":
         predictions, metrics = comparison()
+        cv_metrics = all_schedule_fault_cv()
         rf, baseline = metrics["random_forest"], metrics["schedule_aware_threshold"]
         rf_severity = metrics["random_forest_severity"]
+        cv_rf, cv_threshold = cv_metrics["random_forest"], cv_metrics["schedule_aware_threshold"]
         fault_record_count = int((predictions["Condition"] != "normal").sum())
         random_forest_alerted_faults = fault_record_count - round(rf["missed_fault_rate"] * fault_record_count)
+        normal_record_count = int((predictions["Condition"] == "normal").sum())
+        rf_false_warning_mask = (predictions["Condition"] == "normal") & (predictions["Predicted_Condition"] != "normal")
+        rf_false_warning_count = int(rf_false_warning_mask.sum())
+        rf_false_warning_hours = ", ".join(
+            str(int(hour)) for hour in sorted(predictions.loc[rf_false_warning_mask, "Hour"].unique())
+        )
         summary = [
             metric_card("Random Forest macro F1", f"{rf['macro_f1']:.1%}", "Primary diagnosis model", "blue"),
             metric_card("Fault location accuracy", f"{rf['fault_location_accuracy']:.1%}", "Random Forest on held-out faults", "cyan"),
             metric_card("Missed faults", f"{rf['missed_fault_rate']:.1%}", "Random Forest alert rate", "rose"),
-            metric_card("False warnings", f"{rf['false_alert_rate']:.1%}", "Random Forest on normal records", "gold"),
+            metric_card("False warnings", f"{rf['false_alert_rate']:.1%}", f"{rf_false_warning_count} of {normal_record_count} held-out normal night records", "gold"),
         ]
         performance = pd.DataFrame([
             {"Measure": label, "Method": method, "Score": scores[key]}
-            for label, key in [("Condition accuracy", "accuracy"), ("Macro F1", "macro_f1"), ("Fault location", "fault_location_accuracy"), ("Missed faults", "missed_fault_rate"), ("False warnings", "false_alert_rate")]
+            for label, key in [("Condition accuracy", "accuracy"), ("Macro F1", "macro_f1"), ("Fault location", "fault_location_accuracy"), ("Missed faults", "missed_fault_rate"), ("False warnings*", "false_alert_rate")]
             for method, scores in [("Random Forest", rf), ("Schedule-aware threshold", baseline)]
         ])
         classscores = pd.DataFrame([
@@ -369,15 +386,29 @@ def render_page(page: str):
                 html.Span("Overall result", className="finding-kicker"),
                 html.H3("Random Forest led on overall fault classification"),
                 html.P(f"On this held-out test, Random Forest scored {rf['accuracy']:.1%} accuracy and {rf['macro_f1']:.1%} macro F1, compared with {baseline['accuracy']:.1%} and {baseline['macro_f1']:.1%} for the schedule-aware threshold. It flagged {random_forest_alerted_faults}/{fault_record_count} simulated fault records, had higher clog recall at all three tested severity levels, and its added severity classifier achieved {rf_severity['accuracy']:.1%} exact severity accuracy across held-out fault cases."),
-                html.P(f"Trade-offs: the threshold baseline had higher fault-location accuracy ({baseline['fault_location_accuracy']:.1%} vs {rf['fault_location_accuracy']:.1%}) and no false warnings on the six normal records; Random Forest produced three false warnings. Results apply only to these synthetic scenarios."),
+                html.P(f"False-warning detail: Random Forest flagged {rf_false_warning_count} of {normal_record_count} normal night records (Hours {rf_false_warning_hours}). The full night schedule was held out from training, so these cases test the model on an unseen schedule; the six normal records make the 50% rate sensitive to individual cases. This is a small synthetic test result, not an estimate for real irrigation operations."),
+                html.P(f"Trade-off: the threshold baseline had higher fault-location accuracy ({baseline['fault_location_accuracy']:.1%} vs {rf['fault_location_accuracy']:.1%}). Its 0/6 false warnings are not an independent estimate because those normal readings also contribute to the schedule/hour reference."),
                 html.A("Read testing, validation and iteration report ↗", href="/testing-report", target="_blank", className="report-link"),
             ], className="finding-copy"), "finding-card"),
+            card([
+                html.H3("Supplementary all-schedule fault evaluation"),
+                html.P(f"Five-fold scenario-grouped evaluation across {cv_metrics['record_count']} fault records and {cv_metrics['fault_scenario_count']} scenarios from morning, afternoon and night. Each scenario's hourly records stayed together; each fault record was evaluated once out of fold." , className="card-subtitle"),
+                data_table(pd.DataFrame([
+                    {"Measure": "Fault-condition accuracy", "Random Forest": f"{cv_rf['accuracy']:.1%}", "Threshold baseline": f"{cv_threshold['accuracy']:.1%}"},
+                    {"Measure": "Macro F1 (leak/clog only)", "Random Forest": f"{cv_rf['macro_f1_leak_clog']:.1%}", "Threshold baseline": f"{cv_threshold['macro_f1_leak_clog']:.1%}"},
+                    {"Measure": "Fault-location accuracy", "Random Forest": f"{cv_metrics['fault_location_accuracy']['random_forest']:.1%}", "Threshold baseline": f"{cv_metrics['fault_location_accuracy']['schedule_aware_threshold']:.1%}"},
+                    {"Measure": "Missed faults", "Random Forest": f"{cv_rf['missed_fault_count']}/{cv_metrics['record_count']} (0.0%)", "Threshold baseline": f"{cv_threshold['missed_fault_count']}/{cv_metrics['record_count']} ({cv_threshold['missed_fault_rate']:.1%})"},
+                ]), "all-schedule-cv-summary", height="285px"),
+                html.P("Fault-only evaluation: normal records were retained for model training and threshold calibration, so this run does not measure false warnings. WNTR generated the readings; AI suggested the mild-clog edge case and the team selected the normal and severe-leak checks in the separate night evaluation.", className="footnote"),
+            ], "card table-card"),
+            html.H3("Night-only held-out results (114 records)"),
             html.Div(summary, className="metric-grid four"),
-            html.Div([card([html.H3("Diagnosis quality and alert risk"), dcc.Graph(figure=bar_figure(performance, "Score", "Measure", "Method", horizontal=True), config={"displayModeBar": False})]),
+            html.Div([card([html.H3("Diagnosis quality and alert risk · night holdout"), dcc.Graph(figure=bar_figure(performance, "Score", "Measure", "Method", horizontal=True), config={"displayModeBar": False})]),
                       card([html.H3("Precision and recall by condition"), dcc.Graph(figure=bar_figure(classscores, "Score", "Condition", "Series"), config={"displayModeBar": False})])], className="chart-grid two"),
             html.Div([card([html.H3("Clog recall by severity"), dcc.Graph(figure=bar_figure(severity, "Recall", "Severity", "Method"), config={"displayModeBar": False})]),
                       card([html.H3("Classification outcomes"), html.Div([dcc.Graph(figure=confusion_figure(predictions, "Predicted_Condition", "Random Forest"), config={"displayModeBar": False}),
                       dcc.Graph(figure=confusion_figure(predictions, "Threshold_Condition", "Schedule-aware threshold"), config={"displayModeBar": False})], className="confusion-pair")])], className="chart-grid two"),
+            html.P("*Night-only false-warning figures are based on six normal records. The threshold baseline uses these same normal data to establish expected schedule/hour values, so its 0/6 is not an independent false-warning estimate. The all-schedule fault evaluation contains no normal test records.", className="footnote"),
             html.P(metrics["response_time_note"], className="footnote"),
             card([html.Div([html.H3("Held-out predictions"), html.Div([dropdown("Condition", "pred-condition", ["All", *sorted(predictions.Condition.unique())]), dropdown("Severity", "pred-severity", ["All", *sorted(predictions.Severity.unique())]), dropdown("Location", "pred-location", ["All", *sorted(predictions.Fault_Location.unique())])], className="control-row compact")], className="predictions-heading"), html.Div(id="prediction-table")], "card table-card"),
         ], className="page-view")

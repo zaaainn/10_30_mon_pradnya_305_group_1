@@ -1,63 +1,71 @@
 # Testing, Validation and Iteration Report
 
-**Original evaluation:** 8 November 2026 · **Severity-model update:** 24 November 2026
-**Prototype:** WNTR-generated irrigation readings, Random Forest condition/location/severity models, schedule-aware threshold baseline
-**Training and evaluation:** `.venv\\Scripts\\python.exe train_model.py`, then `.venv\\Scripts\\python.exe evaluate_methods.py`
+**Updated:** 26 November 2026  
+**Prototype:** WNTR-generated irrigation readings; Random Forest condition, location and severity models; schedule-aware threshold baseline  
+**Data status:** All readings and labels are synthetic WNTR simulation outputs. No field or live UOW sensor data is used.
 
-## Scope and procedure
+## Evaluation 1: held-out night schedule
 
-Both methods were applied to the same group of 114 night-schedule held-out records and 19 scenarios (normal operation, three leak and three clog conditions for each zone). The entire night schedule is not included in the training split for the Random Forest. The scenario labels and locations recorded were compared with predictions. All readings are synthetic simulation outputs, not actual performance in the live UOW infrastructure or actual field performance.
-
-## Main results
-
-**Key finding:** On the held-out night schedule, Random Forest achieved higher overall classification accuracy and macro F1 than the schedule-aware threshold baseline. It also detected every simulated fault case, had higher overall leak recall and higher clog recall at each reported severity. The added Random Forest severity classifier achieved 87.0% exact severity accuracy (macro F1 86.9%) across the 108 held-out fault records. This supports Random Forest as the stronger overall classifier for these simulated cases. The threshold baseline was better at locating faults and avoiding false warnings, and does not estimate severity.
+The Random Forest was trained on morning and afternoon records. All 114 night-schedule records across 19 scenarios were held out. Random Forest and the threshold baseline were evaluated on the same records against their recorded simulation labels.
 
 | Measure | Random Forest | Schedule-aware threshold |
 |---|---:|---:|
-| Classification accuracy | 85.1% | 71.1% |
+| Condition accuracy | 85.1% | 71.1% |
 | Macro F1 | 79.4% | 77.5% |
 | Fault-location accuracy | 77.8% | 95.4% |
 | Missed-fault rate | 0.0% (0/108) | 4.6% (5/108) |
-| False-warning rate on normal cases | 50.0% (3/6) | 0.0% (0/6) |
+| False-warning rate on normal records | 50.0% (3/6) | 0.0% (0/6)* |
 | Mild-clog recall | 61.1% (11/18) | 38.9% (7/18) |
 | Moderate-clog recall | 66.7% (12/18) | 55.6% (10/18) |
 | Severe-clog recall | 94.4% (17/18) | 66.7% (12/18) |
-| Severity exact accuracy on held-out fault records | 87.0% (94/108) | Not estimated |
-| Severity macro F1 on held-out fault records | 86.9% | Not estimated |
+| Random Forest severity accuracy | 87.0% (94/108) | Not estimated |
+| Random Forest severity macro F1 | 86.9% | Not estimated |
 
-The severity classifier predicts mild, moderate, or severe for fault cases. Its test covers 108 held-out night fault records, with 36 records per severity. Recall was 100.0% for mild, 75.0% for moderate, and 86.1% for severe. Severity accuracy is a Random Forest capability; the threshold baseline has no severity output. These are simulated labels and readings, not measured field fault severities.
+The Random Forest classified more night records correctly overall and missed no simulated faults. The threshold baseline located faults more accurately. Random Forest raised false warnings on three of the six normal night records, at Hours 2, 3 and 4. The normal sample is small, and the whole night schedule was unseen during model training.
 
-The fault missed-rate is the number of faults that the method did not produce an alert. Even if a wrong prediction of the fault type is detected, the event will still be reported as an alert and thus classification errors will be reported separately with precision, recall and F1.
+**False-warning caveat:** The threshold baseline uses the dataset's normal readings to construct its schedule-and-hour reference, including the six night normal readings being scored. Those same readings therefore match their reference. Its reported 0/6 is not an independent false-warning estimate and should not be used to claim a verified false-alarm advantage. A fair false-warning comparison requires separate normal calibration and test readings.
 
-The most relevant overall measures for the research question are the classification accuracy and macro F1: both are higher for Random Forest in this held-out test. The measures of fault location and false warning show the utility and accuracy of the simpler threshold baseline. The measurements do not show that either method will be the same when applied to field data.
+The severity model predicts mild, moderate or severe for cases classified as faults. Its night evaluation covers 108 held-out fault records, with 36 records per severity. Recall was 100.0% for mild, 75.0% for moderate and 86.1% for severe. The threshold baseline does not estimate severity.
 
-## Test cases: AI-suggested and manually selected
+## Evaluation 2: all-schedule scenario-grouped fault evaluation
 
-| Test origin and case | Records | Random Forest result | Threshold result | Finding |
-|---|---:|---|---|---|
-| AI-suggested edge case: mild clogs across Zones A, B and C during the night schedule | 18 | Correct clog class: 61.1%; correct location: 66.7% | Correct clog class: 38.9%; correct location: 72.2%; 27.8% not alerted | Mild clogs are difficult for both methods. The classifier recognized more clogs, while the threshold method located the affected zone more often. |
-| Manually selected routine check: normal night operation | 6 | 50.0% classified normal; 50.0% false warnings | 100.0% classified normal; 0.0% false warnings | The classifier raised three false warnings in six normal readings. |
-| Manually selected clear-fault check: severe leaks across Zones A, B and C during the night schedule | 18 | Correct leak class and location: 100% | Correct leak class and location: 100% | Both methods handled these clear simulated leak cases. |
+A supplementary five-fold `GroupKFold` evaluation covered all **324 fault records** across morning, afternoon and night (54 fault scenario configurations). All six hourly readings from a scenario stayed in one fold; each record was predicted once by a model that did not train on that scenario. The Random Forest was fitted separately in each fold using the other fault scenarios and all 18 normal records. The threshold baseline used the normal records as calibration references and was scored on the same held-out fault records.
 
-The night profile uses a demand multiplier of 0.15. A zero-demand/no-watering fault case is not present in this dataset, so that edge case remains untested.
+| Measure (fault records only) | Random Forest | Schedule-aware threshold |
+|---|---:|---:|
+| Fault-condition accuracy | 100.0% | 71.9% |
+| Macro F1 (leak/clog classes) | 100.0% | 82.8% |
+| Fault-location accuracy | 91.4% | 91.4% |
+| Missed faults | 0/324 (0.0%) | 28/324 (8.6%) |
+| Severity accuracy (Random Forest only) | 52.5% | Not estimated |
 
-## Retest and iteration record
+This evaluation tests held-out fault scenarios within schedules represented in the training folds. It is not the unseen-night-schedule test above, and its 100% condition accuracy must not be presented as directly replacing the 85.1% night result. The 324 evaluation contains no normal test records, so it does not measure false warnings.
 
-Before the severity-model update, the full condition/location comparison was run twice and produced the same prediction CSV byte-for-byte (SHA-256: `4B230141170BA63073541231C974A68CCDCCAD5408932A44786AF4CAA2D38C9D`). The updated evaluation on 24 November includes the new severity predictions; repeat-run reproducibility for this expanded output has not yet been checked. Processing times vary between runs, so they are backend timing observations rather than stable dashboard response-time results.
+## Test-case selection and data origin
 
-**Successes:** the evaluation completed for both methods on identical held-out cases; the classifier had higher macro F1 and no missed fault alerts; the threshold method had higher fault-location accuracy and no false warnings; and the Random Forest severity model was evaluated on the same held-out fault records.
+The scenario readings were generated by WNTR. AI assisted with suggesting a mild-clog edge case; the project team selected normal-operation and severe-leak checks. These are test-case selection origins, not data-generation methods. The manually selected normal check and AI-suggested mild-clog check are represented in the night evaluation; the 324-record evaluation systematically covers all fault scenarios.
 
-**Failures and limitations:** Both methods had low mild-clog recall with the classifier producing three false warnings and the threshold method having poor location accuracy and no zero-demand test. Currently, the response-time metric only accounts for the backend processing time, and not the complete time from the user clicking on a dashboard scenario until he or she sees the result.
+| Selected check | Selection source | Records | Purpose |
+|---|---|---:|---|
+| Mild clogs across Zones A, B and C at night | AI-suggested edge case | 18 | Probe a difficult low-severity fault |
+| Normal night operation | Team-selected | 6 | Check routine operation and false warnings |
+| Severe leaks across Zones A, B and C at night | Team-selected | 18 | Check a clear fault in each zone |
 
-**Iteration decision:** Do not tune model or threshold settings on the held-out night results and report this set separately. For the next iteration, include explicit zero demand conditions, examine normal operation false warning and mild clog errors on train/valid data, and test a new version on a new (held-out) test set. Measure end to end response time in the browser independently.
+The zero-demand/no-watering fault case is absent from the submitted dataset and remains untested.
 
-## Dashboard update and retest — 9 November 2026
+## Retest, failures and limitations
 
-The Study area page now displays the geographic context image and a separate schematic 3 km boundary, displacing the pipeline overlay, and without the schedule/hour selectors. The simulated source, manifold, zones, readings and scenario controls are still found in the pipeline view. Method comparison now identifies the measured advantages of the Random Forest while retaining the location and false-warning advantages of the baseline, and suggests some links with this report. The results on the page represent the held-out evaluation described above (but no results or source readings were changed).
+- The original condition/location evaluation was run twice and produced identical prediction CSVs. The severity update added a new model and predictions; reproducibility of that expanded evaluation has not been independently rechecked.
+- The night evaluation's main observed failure was three Random Forest false warnings among six normal records. The threshold's zero warnings on those same rows are not independent because the rows also define its reference values.
+- The all-schedule grouped evaluation showed strong fault classification on this generated scenario set, but it does not test normal false warnings or real-world generalisation.
+- Both evaluations use synthetic readings and labels. Neither establishes performance on live irrigation infrastructure or external measured data.
+- The evaluation's processing times measure backend inference only, not the full user-perceived dashboard response time.
 
-When added the page separation and report link, the local dataset and dashboard validation suite passed **8 tests in 9.975 seconds**. This includes pipeline overlay checks that Study area does not contain a pipeline overlay, pipeline views rendering pipeline network controls, and Method comparison rendering and report URL returning current report. This is a local verification only, the hosted Render deploy is still to finish successfully.
+No model retuning or new independent normal test set was included in this update. Next, collect or generate separate normal calibration and test records, include zero-demand cases, and evaluate on an untouched scenario set. Keep the held-out-night and all-schedule results reported as separate experiments.
 
 ## Evidence files
 
-- `outputs/method_comparison_metrics.json` — machine-readable metric summary.
-- `outputs/method_comparison_predictions.csv` — per-record truth and both methods' predictions.
+- `outputs/method_comparison_metrics.json` and `outputs/method_comparison_predictions.csv` — held-out night results.
+- `evaluate_all_schedules_fault_cv.py` — repeatable five-fold, scenario-grouped fault evaluation.
+- `outputs/all_schedules_fault_cv_metrics.json` and `outputs/all_schedules_fault_cv_predictions.csv` — all-schedule fold results.
+- `outputs/labeled_fault_scenarios.csv` — source synthetic dataset; unchanged by the supplementary evaluation.
