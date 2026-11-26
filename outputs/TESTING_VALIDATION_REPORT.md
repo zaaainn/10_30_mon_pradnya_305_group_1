@@ -1,7 +1,7 @@
 # Testing, Validation and Iteration Report
 
 **Updated:** 26 November 2026  
-**Prototype:** WNTR-generated irrigation readings; Random Forest condition, location and severity models; schedule-aware threshold baseline  
+**Prototype:** WNTR-generated irrigation readings; Random Forest condition and location models; schedule-aware threshold baseline  
 **Data status:** All readings and labels are synthetic WNTR simulation outputs. No field or live UOW sensor data is used.
 
 ## Evaluation 1: held-out night schedule
@@ -15,17 +15,10 @@ The Random Forest was trained on morning and afternoon records. All 114 night-sc
 | Fault-location accuracy | 77.8% | 95.4% |
 | Missed-fault rate | 0.0% (0/108) | 4.6% (5/108) |
 | False-warning rate on normal records | 50.0% (3/6) | 0.0% (0/6)* |
-| Mild-clog recall | 61.1% (11/18) | 38.9% (7/18) |
-| Moderate-clog recall | 66.7% (12/18) | 55.6% (10/18) |
-| Severe-clog recall | 94.4% (17/18) | 66.7% (12/18) |
-| Random Forest severity accuracy | 87.0% (94/108) | Not estimated |
-| Random Forest severity macro F1 | 86.9% | Not estimated |
 
 The Random Forest classified more night records correctly overall and missed no simulated faults. The threshold baseline located faults more accurately. Random Forest raised false warnings on three of the six normal night records, at Hours 2, 3 and 4. The normal sample is small, and the whole night schedule was unseen during model training.
 
 **False-warning caveat:** The threshold baseline uses the dataset's normal readings to construct its schedule-and-hour reference, including the six night normal readings being scored. Those same readings therefore match their reference. Its reported 0/6 is not an independent false-warning estimate and should not be used to claim a verified false-alarm advantage. A fair false-warning comparison requires separate normal calibration and test readings.
-
-The severity model predicts mild, moderate or severe for cases classified as faults. Its night evaluation covers 108 held-out fault records, with 36 records per severity. Recall was 100.0% for mild, 75.0% for moderate and 86.1% for severe. The threshold baseline does not estimate severity.
 
 ## Evaluation 2: all-schedule scenario-grouped fault evaluation
 
@@ -37,7 +30,6 @@ A supplementary five-fold `GroupKFold` evaluation covered all **324 fault record
 | Macro F1 (leak/clog classes) | 100.0% | 82.8% |
 | Fault-location accuracy | 91.4% | 91.4% |
 | Missed faults | 0/324 (0.0%) | 28/324 (8.6%) |
-| Severity accuracy (Random Forest only) | 52.5% | Not estimated |
 
 This evaluation tests held-out fault scenarios within schedules represented in the training folds. It is not the unseen-night-schedule test above, and its 100% condition accuracy must not be presented as directly replacing the 85.1% night result. The 324 evaluation contains no normal test records, so it does not measure false warnings.
 
