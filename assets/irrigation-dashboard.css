@@ -119,6 +119,8 @@ h1, h2, h3, p { margin-top: 0; }
 .boundary-radius-label { position: absolute; top: 13px; left: 50%; padding: 4px 8px; border-radius: 99px; background: var(--card); color: var(--accent-ink); font-size: 10px; font-weight: 800; transform: translateX(-50%); }
 .footnote { margin: 12px 2px 22px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .pipeline-controls { display: grid; grid-template-columns: repeat(5, minmax(120px,1fr)); }
+.pipeline-run-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: -2px 0 22px; }
+.pipeline-run-hint { color: var(--muted); font-size: 13px; }
 .scenario-summary { min-height: 33px; margin: 3px 0 12px; }
 .scenario-chip { display: inline-block; padding: 7px 11px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-ink); font-size: 11px; font-weight: 700; }
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 21px 0; }

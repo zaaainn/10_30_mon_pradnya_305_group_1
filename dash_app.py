@@ -318,18 +318,28 @@ def render_page(page: str):
         ], className="page-view")
     if page == "Pipeline view":
         schedules = sorted(data.Schedule.unique())
+        default_schedule = schedules[0]
+        default_row = data.loc[
+            (data.Schedule == default_schedule)
+            & (data.Condition == "normal")
+            & (data.Hour == 0)
+        ].iloc[0]
         return html.Div([
             section_heading("Network model", "Pipeline overview", "Explore simulated pressure and flow under schedules and fault scenarios"),
             card(html.Div([html.Span("i", className="notice-icon"), html.P("Pipe geometry and locations are illustrative, not surveyed infrastructure.")], className="notice-content"), "notice-card"),
             html.Div([
-                dropdown("Schedule", "pipe-schedule", schedules, schedules[0]),
+                dropdown("Schedule", "pipe-schedule", schedules, default_schedule),
                 dropdown("Condition", "pipe-condition", ["normal", "leak", "clog"], "normal"),
                 dropdown("Severity", "pipe-severity", ["none", "mild", "moderate", "severe"], "none"),
                 dropdown("Fault zone", "pipe-zone", ["none", *ZONES], "none"),
                 dropdown("Hour", "pipe-hour", list(range(6)), 0),
             ], className="control-row pipeline-controls"),
+            html.Div([
+                html.Span("Choose the scenario settings, then run to refresh the map and readings.", className="pipeline-run-hint"),
+                html.Button(["Run scenario", html.Span("→", className="button-arrow")], id="run-pipeline", n_clicks=0, className="button primary"),
+            ], className="pipeline-run-row"),
             html.Div(id="pipeline-summary", className="scenario-summary"),
-            card(html.Div(id="pipeline-map", children=map_component(data.iloc[0])), "map-card"),
+            card(html.Div(id="pipeline-map", children=map_component(default_row)), "map-card"),
         ], className="page-view")
     if page == "Watering data":
         schedules = ["All", *sorted(data.Schedule.unique())]
@@ -529,9 +539,10 @@ def draw_notification(state):
 
 @callback(Output("pipeline-hour", "options"), Output("pipeline-hour", "value"),
           Output("pipeline-map", "children"), Output("pipeline-summary", "children"),
-          Input("pipe-schedule", "value"), Input("pipe-condition", "value"), Input("pipe-severity", "value"),
-          Input("pipe-zone", "value"), Input("pipe-hour", "value"))
-def update_pipeline(schedule, condition, severity, zone, hour):
+          Input("run-pipeline", "n_clicks"), State("pipe-schedule", "value"), State("pipe-condition", "value"),
+          State("pipe-severity", "value"), State("pipe-zone", "value"), State("pipe-hour", "value"),
+          prevent_initial_call=True)
+def update_pipeline(_n_clicks, schedule, condition, severity, zone, hour):
     data = dataset()
     frame = data.loc[(data.Schedule == schedule) & (data.Condition == condition)]
     if condition == "normal":
