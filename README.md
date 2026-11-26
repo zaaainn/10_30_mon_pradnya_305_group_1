@@ -65,13 +65,13 @@ This creates 342 schedule-hour records from 57 scenario configurations and saves
 
 ## Random Forest model
 
-Train and save the condition and fault-location models:
+Train and save the condition, fault-location, and fault-severity models:
 
 ```powershell
 .\.venv\Scripts\python.exe .\train_model.py
 ```
 
-The script holds out the entire night profile for a schedule-generalization check, then saves both model pipelines in `models/random_forest_diagnosis.joblib`. Generate predictions for the dataset with:
+The script holds out the entire night profile for a schedule-generalization check, then saves all three model pipelines in `models/random_forest_diagnosis.joblib`. The severity model is trained on fault records only and estimates mild, moderate, or severe. During diagnosis, it is shown when the condition model flags a fault; normal cases have no severity estimate. The threshold baseline does not estimate severity. All severity labels and readings currently come from the synthetic scenario data. Generate predictions for the dataset with:
 
 ```powershell
 .\.venv\Scripts\python.exe .\predict_diagnosis.py

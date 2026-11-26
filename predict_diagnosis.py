@@ -14,7 +14,7 @@ DEFAULT_PREDICTIONS = ROOT / "outputs" / "random_forest_predictions.csv"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Predict scenario condition and fault zone.")
+    parser = argparse.ArgumentParser(description="Predict scenario condition, fault zone, and fault severity.")
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_PREDICTIONS)
