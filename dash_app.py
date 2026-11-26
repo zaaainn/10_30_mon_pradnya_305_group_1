@@ -358,11 +358,35 @@ def render_page(page: str):
         rf_false_warning_hours = ", ".join(
             str(int(hour)) for hour in sorted(predictions.loc[rf_false_warning_mask, "Hour"].unique())
         )
+        night_missed_rf = round(rf["missed_fault_rate"] * fault_record_count)
+        night_missed_threshold = round(baseline["missed_fault_rate"] * fault_record_count)
+        night_false_rf = round(rf["false_alert_rate"] * normal_record_count)
+        night_false_threshold = round(baseline["false_alert_rate"] * normal_record_count)
         summary = [
-            metric_card("Random Forest macro F1", f"{rf['macro_f1']:.1%}", "Primary diagnosis model", "blue"),
-            metric_card("Fault location accuracy", f"{rf['fault_location_accuracy']:.1%}", "Random Forest on held-out faults", "cyan"),
-            metric_card("Missed faults", f"{rf['missed_fault_rate']:.1%}", "Random Forest alert rate", "rose"),
-            metric_card("False warnings", f"{rf['false_alert_rate']:.1%}", f"{rf_false_warning_count} of {normal_record_count} held-out normal night records", "gold"),
+            metric_card(
+                "Macro F1 · night / all-schedule faults",
+                f"{rf['macro_f1']:.1%} / {cv_rf['macro_f1_leak_clog']:.1%}",
+                f"Random Forest · Threshold {baseline['macro_f1']:.1%} / {cv_threshold['macro_f1_leak_clog']:.1%}",
+                "blue",
+            ),
+            metric_card(
+                "Fault location · night / all-schedule faults",
+                f"{rf['fault_location_accuracy']:.1%} / {cv_metrics['fault_location_accuracy']['random_forest']:.1%}",
+                f"Random Forest · Threshold {baseline['fault_location_accuracy']:.1%} / {cv_metrics['fault_location_accuracy']['schedule_aware_threshold']:.1%}",
+                "cyan",
+            ),
+            metric_card(
+                "Missed faults · night / all-schedule",
+                f"{rf['missed_fault_rate']:.1%} / {cv_rf['missed_fault_rate']:.1%}",
+                f"RF {night_missed_rf}/{fault_record_count} · {cv_rf['missed_fault_count']}/{cv_metrics['record_count']} | Threshold {night_missed_threshold}/{fault_record_count} · {cv_threshold['missed_fault_count']}/{cv_metrics['record_count']}",
+                "rose",
+            ),
+            metric_card(
+                "False warnings · night normals only",
+                f"{rf['false_alert_rate']:.1%}",
+                f"RF {night_false_rf}/{normal_record_count} · Threshold {night_false_threshold}/{normal_record_count}*; all-schedule CV has no normal test rows",
+                "gold",
+            ),
         ]
         performance = pd.DataFrame([
             {"Measure": label, "Method": method, "Score": scores[key]}
