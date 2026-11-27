@@ -335,7 +335,7 @@ def render_page(page: str):
                 dropdown("Hour", "pipe-hour", list(range(6)), 0),
             ], className="control-row pipeline-controls"),
             html.Div([
-                html.Span("Choose the scenario settings, then run to refresh the map and readings.", className="pipeline-run-hint"),
+                html.Span("The map updates with your selections. Use Run scenario to refresh it again.", className="pipeline-run-hint"),
                 html.Button(["Run scenario", html.Span("→", className="button-arrow")], id="run-pipeline", n_clicks=0, className="button primary"),
             ], className="pipeline-run-row"),
             html.Div(id="pipeline-summary", className="scenario-summary"),
@@ -537,11 +537,10 @@ def draw_notification(state):
     return content, "notification-panel", {"display": "block" if state.get("open") else "none"}
 
 
-@callback(Output("pipeline-hour", "options"), Output("pipeline-hour", "value"),
-          Output("pipeline-map", "children"), Output("pipeline-summary", "children"),
-          Input("run-pipeline", "n_clicks"), State("pipe-schedule", "value"), State("pipe-condition", "value"),
-          State("pipe-severity", "value"), State("pipe-zone", "value"), State("pipe-hour", "value"),
-          prevent_initial_call=True)
+@callback(Output("pipeline-map", "children"), Output("pipeline-summary", "children"),
+          Input("run-pipeline", "n_clicks"), Input("pipe-schedule", "value"),
+          Input("pipe-condition", "value"), Input("pipe-severity", "value"),
+          Input("pipe-zone", "value"), Input("pipe-hour", "value"))
 def update_pipeline(_n_clicks, schedule, condition, severity, zone, hour):
     data = dataset()
     frame = data.loc[(data.Schedule == schedule) & (data.Condition == condition)]
@@ -551,12 +550,11 @@ def update_pipeline(_n_clicks, schedule, condition, severity, zone, hour):
         frame = frame.loc[(frame.Severity == severity) & (frame.Fault_Location == zone)]
     hours = sorted(frame.Hour.unique())
     if not hours:
-        return [], None, html.Div("No scenario matches the selected filters.", className="empty-state"), html.Div()
-    selected_hour = hour if hour in hours else hours[0]
+        return html.Div("No scenario matches these selections. Choose a fault severity and zone, or switch to normal operation.", className="empty-state"), html.Div()
+    selected_hour = int(hour) if int(hour) in hours else int(hours[0])
     row = frame.loc[frame.Hour == selected_hour].iloc[0]
     label = f"{schedule.title()} schedule · {condition.title()} · {severity.title()} · {zone if zone != 'none' else 'No fault'} · Hour {selected_hour}"
-    return ([{"label": f"Hour {int(h)}", "value": int(h)} for h in hours], selected_hour,
-            map_component(row, zone if condition != "normal" else None), html.Span(label, className="scenario-chip"))
+    return map_component(row, zone if condition != "normal" else None), html.Span(label, className="scenario-chip")
 
 
 @callback(Output("dataset-summary", "children"), Output("dataset-table", "children"),
