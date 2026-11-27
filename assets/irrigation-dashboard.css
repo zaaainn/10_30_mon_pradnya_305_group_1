@@ -103,13 +103,14 @@ h1, h2, h3, p { margin-top: 0; }
 .map-card { padding: 9px; overflow: hidden; }
 .map-stage { position: relative; width: 100%; aspect-ratio: 1.49; overflow: hidden; border-radius: 11px; background: #ffffff; }
 .map-image, .map-overlay { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
-.map-image { object-fit: cover; }
-.map-overlay { pointer-events: none; }
-.map-disclaimer { position: absolute; top: 15px; left: 15px; width: max-content; max-width: calc(100% - 30px); padding: 9px 12px; border: 1px solid rgba(255,255,255,.72); border-radius: 8px; background: rgba(0,95,115,.95); color: #ffffff; font-size: 9px; line-height: 1.4; font-weight: 800; letter-spacing: .05em; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+.map-image { object-fit: cover; filter: saturate(.78); }
+.map-stage::before, .study-context-map::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: rgba(0,95,115,.10); mix-blend-mode: multiply; }
+.map-overlay { z-index: 2; pointer-events: none; }
+.map-disclaimer { position: absolute; z-index: 3; top: 15px; left: 15px; width: max-content; max-width: calc(100% - 30px); padding: 9px 12px; border: 1px solid rgba(255,255,255,.72); border-radius: 8px; background: rgba(0,95,115,.95); color: #ffffff; font-size: 9px; line-height: 1.4; font-weight: 800; letter-spacing: .05em; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
 .study-area-card { padding: 12px; }
 .study-area-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(250px, .65fr); gap: 16px; }
 .study-context-map { position: relative; min-height: 430px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--card-soft); }
-.study-context-image { display: block; width: 100%; height: 100%; min-height: 430px; object-fit: cover; }
+.study-context-image { position: relative; z-index: 0; display: block; width: 100%; height: 100%; min-height: 430px; object-fit: cover; filter: saturate(.78); }
 .boundary-panel { min-height: 430px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-soft); text-align: center; }
 .boundary-panel h3 { margin: 18px 0 8px; font-size: 15px; }
 .boundary-panel p { margin: 5px 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
