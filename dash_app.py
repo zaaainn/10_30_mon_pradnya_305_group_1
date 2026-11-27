@@ -537,6 +537,15 @@ def draw_notification(state):
     return content, "notification-panel", {"display": "block" if state.get("open") else "none"}
 
 
+@callback(Output("pipe-severity", "disabled"), Output("pipe-severity", "value"),
+          Output("pipe-zone", "disabled"), Output("pipe-zone", "value"),
+          Input("pipe-condition", "value"))
+def toggle_pipeline_fault_controls(condition):
+    if condition == "normal":
+        return True, "none", True, "none"
+    return False, no_update, False, no_update
+
+
 @callback(Output("pipeline-map", "children"), Output("pipeline-summary", "children"),
           Input("run-pipeline", "n_clicks"), Input("pipe-schedule", "value"),
           Input("pipe-condition", "value"), Input("pipe-severity", "value"),
